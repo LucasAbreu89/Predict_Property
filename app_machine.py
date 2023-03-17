@@ -1,26 +1,35 @@
 import pandas as pd
 import unidecode
 import streamlit as st
-from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import OneHotEncoder
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.datasets import make_classification
 import warnings
-import json
-from PIL import Image
 import time
-import base64
 import os
+from dotenv import load_dotenv
+from supabase import create_client
+from sklearn.metrics import r2_score
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# loading and cleaning data
-df = pd.read_csv("real.csv")
-df.drop_duplicates(inplace=True)
-df2 = df.drop(["url(image)", "url(apt)", "address"], axis=1)
+# loading data
+load_dotenv()
+
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_KEY")
+supabase = create_client(url, key)
+
+scrap_day = supabase.table("data_scrap").select("*").execute()
+
+# cleaning data
+df = pd.DataFrame(scrap_day.data)
+df = df.reset_index()
+df2 = df.drop(["id", "created_at", "index"], axis=1)
+df2 = df2.drop_duplicates()
+df2 = df2.drop(["url(image)", "url(apt)", "address"], axis=1)
 df3 = df2[(df2['area(m²)'] > 15) & (df2['area(m²)'] < 1500)]
 df3 = df3[(df3['condo(R$)'] < 10000) & (df3['condo(R$)'] >= 30)]
 df3 = df3[(df3['price(R$)'] > 100000)]
@@ -94,16 +103,18 @@ if user_input_variables is not None:
     st.dataframe(user_input_variables, width=800)
 
 # modelo
-rfc = RandomForestClassifier(n_estimators=200,
-                             random_state=42,
-                             max_depth=30,
-                             max_features="auto",
-                             max_samples=0.5)
+rfc = RandomForestRegressor(n_estimators=200,
+                            random_state=42,
+                            max_depth=30,
+                            max_features="auto",
+                            max_samples=0.5)
 rfc.fit(X_train, y_train)
 
 # acuracy
-# st.subheader("Acuracy:")
-# st.write(accuracy_score(y_test, rfc.predict(X_test)))
+
+y_pred = rfc.predict(X_test)
+r2 = r2_score(y_test, y_pred)
+st.subheader("R-squared (R2) value: " + str(r2))
 
 # normalize data
 try:

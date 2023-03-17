@@ -2,5 +2,6 @@ pandas
 scikit-learn
 unidecode
 numpy
-
-
+supabase
+streamlit
+python-dotenv
