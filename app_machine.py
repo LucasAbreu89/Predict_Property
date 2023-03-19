@@ -13,6 +13,10 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 from sklearn.metrics import r2_score
+import plotly.express as px
+from unidecode import unidecode
+import re
+from rapidfuzz import fuzz
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # loading data
@@ -23,21 +27,48 @@ key = os.environ.get("SUPABASE_KEY")
 supabase = create_client(url, key)
 
 scrap_day = supabase.table("data_scrap").select("*").execute()
+bairro_categorizado = pd.read_excel("Categoria_bairros.xlsx", index_col=0)
+my_dict = bairro_categorizado.to_dict()['regional']
+df4 = pd.DataFrame(scrap_day.data)
 
 # cleaning data
-df = pd.DataFrame(scrap_day.data)
-df = df.reset_index()
-df2 = df.drop(["id", "created_at", "index"], axis=1)
-df2 = df2.drop_duplicates()
-df2 = df2.drop(["url(image)", "url(apt)", "address"], axis=1)
-df3 = df2[(df2['area(m²)'] > 15) & (df2['area(m²)'] < 1500)]
-df3 = df3[(df3['condo(R$)'] < 10000) & (df3['condo(R$)'] >= 30)]
-df3 = df3[(df3['price(R$)'] > 100000)]
-df4 = df3.dropna(subset=['condo(R$)'])
-df4.loc[:, 'district'] = df4['district'].apply(
-    lambda x: unidecode.unidecode(x))
-df4.reset_index(drop=True, inplace=True)
-df4.fillna(0, inplace=True)
+df4 = df4.reset_index()
+df4 = df4.drop(["id", "created_at", "index"], axis=1)
+df4.drop_duplicates(inplace=True)
+df4.drop(["url(image)", "url(apt)", "address"], axis=1, inplace=True)
+df4 = df4[(df4['area(m²)'] > 15) & (df4['area(m²)'] < 1500)]
+df4 = df4[(df4['condo(R$)'] < 10000) & (df4['condo(R$)'] >= 30)]
+df4 = df4[(df4['price(R$)'] > 100000)]
+df4.dropna(subset=['condo(R$)'], inplace=True)
+print(df4.shape)
+df4['district'] = df4['district'].apply(lambda x: unidecode(x))
+df4['district'] = df4['district'].str.title()
+df4['district'] = df4['district'].apply(
+    lambda x: re.sub(r'\([^)]*\)', '', x).strip())
+df4['district'] = df4['district'].str.replace("ç", "c")
+df4 = df4.reset_index(drop=True)
+df4['regional'] = None
+for key, value in my_dict.items():
+    mask = df4['district'] == key
+    if mask.any():
+        df4.loc[mask, 'regional'] = value
+    else:
+        # find the closest match to the key
+        ratios = [(fuzz.ratio(key, district), district)
+                  for district in df4['district']]
+        closest_match = max(ratios, key=lambda x: x[0])[1]
+        # set the value in the 'regional' column for the closest match
+        mask = df4['district'] == closest_match
+        df4.loc[mask, 'regional'] = value
+
+counts_by_regional = df4.groupby('regional')['price(R$)'].count().reset_index()
+counts_by_regional = counts_by_regional.rename(columns={'price(R$)': 'count'})
+df_mean_price = df4.groupby('regional', as_index=False).mean()
+
+df4.drop(["regional"], axis=1, inplace=True)
+df4[['bedroom', 'bathrooms', 'parkings', "condo(R$)"]] = df4[[
+    'bedroom', 'bathrooms', 'parkings', "condo(R$)"]].fillna(0)
+
 district_options = df4["district"].unique()
 
 # training test
@@ -136,3 +167,28 @@ try:
         st.header(f"Estimated price: R${pred:.2f}")
 except:
     st.write("Please fill in all the required fields.")
+
+# plots
+
+
+fig1 = px.bar(counts_by_regional, x='regional', y='count', color="regional",
+              title='Counts of properties by regional',
+              hover_data=['count'])
+
+fig2 = px.bar(df_mean_price, x='regional', y='price(R$)', color='regional',
+              labels={'regional': 'Regional', 'price(R$)': 'Average Price (R$)'})
+
+fig2.update_layout(title='Average Property Price by Region',
+                   xaxis_title='Region',
+                   yaxis_title='Average Price (R$)')
+
+tab1, tab2 = st.tabs(['Counts of properties by regional',
+                     'Average Property Price by Region'])
+
+with tab1:
+    # Use the Streamlit theme.
+    # This is the default. So you can also omit the theme argument.
+    st.plotly_chart(fig1, use_container_width=True)
+with tab2:
+    # Use the native Plotly theme.
+    st.plotly_chart(fig2, use_container_width=True)
