@@ -4,6 +4,9 @@
   background-position: center;
 }
 
+button {
+  background-color: transparent;
+}
 #tabs-bui9-tab-0 {
   background-color: transparent;
 }
