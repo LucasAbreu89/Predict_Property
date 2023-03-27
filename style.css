@@ -7,23 +7,25 @@
 button {
   background-color: transparent;
 }
-#tabs-bui9-tab-0 {
-  background-color: transparent;
+
+div[data-testid="stSidebarNav"] {
+  background-color: whitesmoke;
 }
-#tabs-bui9-tab-1 {
-  background-color: transparent;
-}
-#tabs-bui8-tab-0 {
-  background-color: transparent;
-}
-#tabs-bui8-tab-1 {
-  background-color: transparent;
+.css-1oe5cao {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .css-1yy6isu.e16nr0p34 {
   color: black;
 }
+.st-cm {
+  background-color: transparent;
+}
 
+.css-184tjsw {
+  background-color: transparent;
+}
 .css-1yy6isu.e16nr0p34:hover {
   color: red;
 }
